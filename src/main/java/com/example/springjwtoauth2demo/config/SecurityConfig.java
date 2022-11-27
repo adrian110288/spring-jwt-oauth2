@@ -1,5 +1,6 @@
 package com.example.springjwtoauth2demo.config;
 
+import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
@@ -31,11 +32,7 @@ import static org.springframework.security.config.http.SessionCreationPolicy.STA
 @EnableWebSecurity
 public class SecurityConfig {
 
-    private final RsaKeyProperties rsaKeys;
-
-    public SecurityConfig(RsaKeyProperties rsaKeys) {
-        this.rsaKeys = rsaKeys;
-    }
+    private RSAKey rsaKey;
 
     @Bean
     public AuthenticationManager authenticationManager(UserDetailsService userDetailsService) {
@@ -71,19 +68,19 @@ public class SecurityConfig {
     }
 
     @Bean
-    public JwtDecoder jwtDecoder() {
-        return NimbusJwtDecoder
-                .withPublicKey(rsaKeys.publicKey())
-                .build();
+    public JWKSource<SecurityContext> jwkSource() {
+        rsaKey = Jwks.generateRsa();
+        JWKSet jwkSet = new JWKSet(rsaKey);
+        return (jwkSelector, securityContext) -> jwkSelector.select(jwkSet);
     }
 
     @Bean
-    public JwtEncoder jwtEncoder() {
-
-        JWK jwk = new RSAKey.Builder(rsaKeys.publicKey())
-                .privateKey(rsaKeys.privateKey())
-                .build();
-        JWKSource<SecurityContext> jwks = new ImmutableJWKSet<>(new JWKSet(jwk));
+    JwtEncoder jwtEncoder(JWKSource<SecurityContext> jwks) {
         return new NimbusJwtEncoder(jwks);
+    }
+
+    @Bean
+    JwtDecoder jwtDecoder() throws JOSEException {
+        return NimbusJwtDecoder.withPublicKey(rsaKey.toRSAPublicKey()).build();
     }
 }
